@@ -1,0 +1,7 @@
+syntax = "proto3";
+
+message Http {
+  string uri = 1;
+  map<string, string> headers = 2;
+  string body = 3;
+}
