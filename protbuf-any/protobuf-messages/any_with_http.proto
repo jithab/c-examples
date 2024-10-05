@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+import "google/protobuf/any.proto";
+
+message User {
+  int32 id = 1;
+  string name = 2;
+}
+
+message Login {
+  string username = 1;
+  string password = 2;
+}
+
+message Http {
+  google.protobuf.Any body = 2;
+}
