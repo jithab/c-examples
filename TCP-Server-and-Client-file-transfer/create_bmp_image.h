@@ -1,0 +1,1 @@
+void generateBMP32(const char *filename, int width, int height);
