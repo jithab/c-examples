@@ -2,7 +2,8 @@
 
 rm -rf build; mkdir -p build/test_tcp build/test_ws
 
-gcc -g main.c create_bmp_image.c  tcp_client.c
+gcc -g main.c create_bmp_image.c  tcp_client.c -o build/main
+
 gcc -g tcp_server.c -o build/tcp_server 
 
 gcc -g ws_server.c -o build/ws_server -lwebsockets 

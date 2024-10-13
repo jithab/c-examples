@@ -23,6 +23,16 @@ void receiveFile(int socket, char *outputfile) {
     }
 
     printf("Receiving file...\n");
+    
+    // Step 5: Create an HTTP GET request
+    char *request = "GET / HTTP/1.1\r\n"
+             "Host: exmaple.com\r\n\r\n";
+
+    // Step 6: Send the HTTP request to the server
+    if (send(socket, request, strlen(request), 0) < 0) {
+        perror("Error sending request");
+        return;
+    }
 
     // Receive file data from the server and write it to the file
     while ((bytesReceived = recv(socket, buffer, BUFFER_SIZE, 0)) > 0) {
