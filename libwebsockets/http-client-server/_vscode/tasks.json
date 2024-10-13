@@ -1,0 +1,22 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build", // This label should match the "preLaunchTask" in launch.json
+      "type": "shell",
+      "command": "gcc", // Use "g++" for C++ files
+      "args": [
+        "-g", // Include debug symbols
+        "${file}",
+        "-o",
+        "${fileDirname}/${fileBasenameNoExtension}",
+        "-lwebsockets"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": ["$gcc"]
+    }
+  ]
+}
