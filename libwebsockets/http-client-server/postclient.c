@@ -25,26 +25,46 @@ static int callback_http(struct lws *wsi, enum lws_callback_reasons reason, void
         // Prepare POST headers
         unsigned char **p = (unsigned char **)in;
         unsigned char *end = (*p) + len;
-        const char *content_type = "Content-Type: application/x-www-form-urlencoded\r\n";
-        const char *content_length = "Content-Length: 13\r\n"; // Adjust this as per your POST data length
+        const char *content_type = "application/x-www-form-urlencoded";
+        const char *content_length = "9"; // Adjust this as per your POST data length
 
         if (lws_add_http_header_by_name(wsi, (unsigned char *)"Content-Type:", (unsigned char *)content_type, strlen(content_type), p, end))
         {
-            return -1;
+            lwsl_warn("Failed Content-Type\n");
+
+            // return -1;
         }
-        if (lws_add_http_header_by_name(wsi, (unsigned char *)"Content-Length:", (unsigned char *)content_length, strlen(content_length), p, end))
+        if (lws_add_http_header_by_name(wsi, (unsigned char *)"Content-Length:", (unsigned char *)content_length, 1, p, end))
         {
-            return -1;
+            lwsl_warn("Failed Content-Length\n");
+
+            // return -1;
         }
+        // if (lws_finalize_http_header(wsi, p, end))
+        //{
+        //     lwsl_warn("Failed lws_finalize_http_header\n");
+
+        // return -1;
+        //}
+        lws_client_http_body_pending(wsi, 1);
+        // lws_callback_on_writable(wsi);
+        //  const char *post_data = "key=value";
+        //  lws_write(wsi, (unsigned char *)post_data, strlen(post_data), LWS_WRITE_HTTP_FINAL);
+
         break;
     }
 
-    case LWS_CALLBACK_CLIENT_WRITEABLE:
+    case LWS_CALLBACK_CLIENT_HTTP_WRITEABLE:
     {
         lwsl_warn("Connection LWS_CALLBACK_CLIENT_WRITEABLE\n");
         // Send POST data
         const char *post_data = "key=value";
         lws_write(wsi, (unsigned char *)post_data, strlen(post_data), LWS_WRITE_HTTP_FINAL);
+        // Notify that there is no more data to send
+        lws_client_http_body_pending(wsi, 0);
+
+        // Optionally close connection if all data is sent
+        // lws_close_reason(wsi, LWS_CLOSE_STATUS_NORMAL, NULL, 0);
         break;
     }
 
@@ -56,18 +76,52 @@ static int callback_http(struct lws *wsi, enum lws_callback_reasons reason, void
         data->response_length += len;
         break;
     }
+    case LWS_CALLBACK_RECEIVE_CLIENT_HTTP:
+    {
+        lwsl_warn("@#@ LWS_CALLBACK_RECEIVE_CLIENT_HTTP\n");
 
+        if (data->response_length >= BUFFER_SIZE)
+        {
+            data->response_length = 0; // In case of overflow, just overwrite!
+        }
+
+        int availableLength = BUFFER_SIZE - data->response_length;
+        int n = 0;
+        char *buf_ptr = (char *)(&data->response_buffer[data->response_length]);
+
+        n = lws_http_client_read(wsi, &buf_ptr, &availableLength);
+        if (n < 0)
+        {
+            return -1; // Indicate error in case of read failure
+        }
+    }
+    break;
+    case LWS_CALLBACK_RECEIVE_CLIENT_HTTP_READ:
+        lwsl_warn("@#@ LWS_CALLBACK_RECEIVE_CLIENT_HTTP_READ\n");
+        data->response_length += len;
+        data->response_buffer[data->response_length] = '\0';
+        printf("Received data: %s\n", data->response_buffer);
+
+        break;
     case LWS_CALLBACK_CLIENT_CONNECTION_ERROR:
         lwsl_warn("Connection error\n");
         break;
 
     case LWS_CALLBACK_COMPLETED_CLIENT_HTTP:
-        lwsl_info("HTTP POST completed\n");
+        lwsl_warn("HTTP POST completed\n");
         lws_cancel_service(lws_get_context(wsi)); // Stop the loop
         break;
 
+    case LWS_CALLBACK_ESTABLISHED_CLIENT_HTTP:
+        lwsl_warn("LWS_CALLBACK_ESTABLISHED_CLIENT_HTTP\n");
+
+        data->response_length = 0;
+        lws_callback_on_writable(wsi);
+        break;
     default:
         lwsl_warn("reason: %d\n", reason);
+        if (reason == 46)
+            return -1;
         break;
     }
     return 0;
@@ -85,7 +139,7 @@ static struct lws_protocols protocols[] = {
 
 int httpPostRequest(const char *address, int port, struct my_user_data *user_data)
 {
-    lws_set_log_level(LLL_ERR | LLL_WARN | LLL_USER, NULL);
+    lws_set_log_level(LLL_ERR | LLL_WARN, NULL);
 
     struct lws_context_creation_info ctx_info;
     struct lws_client_connect_info conn_info;
@@ -116,7 +170,7 @@ int httpPostRequest(const char *address, int port, struct my_user_data *user_dat
     conn_info.method = "POST"; // Set method to POST
     conn_info.ietf_version_or_minus_one = -1;
     conn_info.ssl_connection = 0; // No SSL
-    conn_info.userdata = user_data;
+    // conn_info.userdata = user_data;
 
     wsi = lws_client_connect_via_info(&conn_info);
     if (wsi == NULL)
@@ -125,6 +179,8 @@ int httpPostRequest(const char *address, int port, struct my_user_data *user_dat
         lws_context_destroy(context);
         return -1;
     }
+
+    // lws_get_protocol(wsi)->user = user_data;
 
     // Event loop
     while (lws_service(context, 1000) >= 0 && lws_get_socket_fd(wsi) >= 0)

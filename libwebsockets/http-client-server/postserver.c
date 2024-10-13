@@ -7,7 +7,11 @@ struct my_user_data
 {
     char response_buffer[1024]; // Buffer for received data
     size_t buffer_len;          // Length of received data
+    struct lws_spa *spa;
 };
+
+static const char *const param_names[] = {
+    "key"};
 
 static int callback_http(struct lws *wsi, enum lws_callback_reasons reason, void *user, void *in, size_t len)
 {
@@ -47,6 +51,8 @@ static int callback_http(struct lws *wsi, enum lws_callback_reasons reason, void
     case LWS_CALLBACK_HTTP_BODY:
     {
         lwsl_warn("LWS_CALLBACK_HTTP_BODY: %d\n", reason);
+        /* create the POST argument parser if not already existing */
+
         // Store the received body data
         if (data->buffer_len + len < sizeof(data->response_buffer) - 1)
         {
@@ -54,25 +60,38 @@ static int callback_http(struct lws *wsi, enum lws_callback_reasons reason, void
             data->buffer_len += len;
             data->response_buffer[data->buffer_len] = '\0'; // Null-terminate the string
         }
+
         break;
     }
 
     case LWS_CALLBACK_HTTP_BODY_COMPLETION:
     {
-        lwsl_warn("LWS_CALLBACK_HTTP_BODY_COMPLETION: %d\n", reason);
-        const char *response = "HTTP/1.1 200 OK\r\n"
-                               "Content-Type: text/html\r\n"
-                               "Content-Length: 32\r\n"
-                               "Connection: close\r\n"
-                               "\r\n"
-                               "<h1>Welcome to POST Server!</h1>";
-        lws_write(wsi, (unsigned char *)response, strlen(response), LWS_WRITE_HTTP);
-        return 0; // Close the connection after sending the response
+
+        /* inform the spa no more payload data coming */
+
+        lwsl_user("LWS_CALLBACK_HTTP_BODY_COMPLETION\n");
+
+        lwsl_user("XXXXXXXxx%s: \n", data->response_buffer);
+        lws_callback_on_writable(wsi);
+        return 0; // Close the connection after the response is sent
     }
 
     case LWS_CALLBACK_HTTP_WRITEABLE:
     {
         lwsl_warn("LWS_CALLBACK_HTTP_WRITEABLE: %d\n", reason);
+        const char *response_body = "<h1>Hello from POST</h1>";
+        const char *headers = "HTTP/1.1 200 OK\r\n"
+                              "Content-Type: text/html\r\n"
+                              "Content-Length: 24\r\n"
+                              "Connection: close\r\n\r\n";
+
+        // Send HTTP headers
+        lws_write(wsi, (unsigned char *)headers, strlen(headers), LWS_WRITE_HTTP_HEADERS);
+
+        // Send HTTP body
+        lws_write(wsi, (unsigned char *)response_body, strlen(response_body), LWS_WRITE_HTTP_FINAL);
+        if (lws_http_transaction_completed(wsi))
+            return -1;
         // If you want to handle writable events, you can do so here
         break;
     }
@@ -102,8 +121,8 @@ int main(void)
 {
     struct lws_context_creation_info ctx_info;
     struct lws_context *context;
-    // lws_set_log_level(LLL_ERR | LLL_WARN | LLL_USER | LLL_INFO, NULL);
-    lws_set_log_level(LLL_ERR | LLL_WARN, NULL);
+    lws_set_log_level(LLL_ERR | LLL_WARN | LLL_USER, NULL);
+    // lws_set_log_level(LLL_ERR | LLL_WARN, NULL);
 
     // Initialize context
     memset(&ctx_info, 0, sizeof(ctx_info));
